@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script type="application/json" id="data">{{ data | safe }}</script>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-4">
+            <h1 class="text-center">Consulta de UF</h1>
+            <form method="POST">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    <div class="mb-3">
+                        {{ form.year.label }} <br>
+                        {{ form.year(class="form-control") }}
+                    </div>
+                </div>  
+                <button type="submit" class="btn btn-primary w-100">Submit</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+{% if data %}
+<h2>Resultados</h2>
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>#</th> <!-- Número de fila -->
+            <th>Mes</th>
+            <th>Inicio</th>
+            <th>Fin</th>
+            <th>Promedio</th> <!-- Promedio mensual -->
+            <th>Variación</th>
+            <th>Tipo de Variación</th>
+        </tr>
+    </thead>
+    <tbody id="allRows"></tbody> <!-- Solo una tabla tbody para todos los datos -->
+</table>
+
+<!-- Mostrar los meses con variación al alza -->
+<h3>Meses con Aumento (Subida)</h3>
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Mes</th>
+            <th>Inicio</th>
+            <th>Fin</th>
+            <th>Promedio</th>
+            <th>Variación</th>
+            <th>Tipo de Variación</th>
+        </tr>
+    </thead>
+    <tbody id="increasingRows"></tbody>
+</table>
+
+<!-- Mostrar los meses con variación a la baja -->
+<h3>Meses con Disminución (Bajada)</h3>
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Mes</th>
+            <th>Inicio</th>
+            <th>Fin</th>
+            <th>Promedio</th>
+            <th>Variación</th>
+            <th>Tipo de Variación</th>
+        </tr>
+    </thead>
+    <tbody id="decreasingRows"></tbody>
+</table>
+
+<h3>Meses sin Variación</h3>
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Mes</th>
+            <th>Inicio</th>
+            <th>Fin</th>
+            <th>Promedio</th>
+            <th>Variación</th>
+            <th>Tipo de Variación</th>
+        </tr>
+    </thead>
+    <tbody id="noChangeRows"></tbody> <!-- Tabla para los meses sin variación -->
+</table>
+
+<h3>Mayor y Menor Valor de UF</h3>
+<h5 id="maxUF"></p> <!-- Mostrará el día con el mayor valor de UF -->
+<h5 id="minUF"></p> <!-- Mostrará el día con el menor valor de UF -->
+
+{% endif %}
+
+<script>
+    // Obtener el objeto JSON desde el bloque de script
+    const dataValue = JSON.parse(document.getElementById('data').textContent);
+    console.log(dataValue);
+    // Ahora puedes trabajar con 'dataValue' como un objeto JavaScript normal
+    // Función para ordenar los datos por mes (formato YYYY-MM)
+    function sortByMonth(a, b) {
+        const monthA = new Date(a.month + '-01');  // Convertir el mes a fecha
+        const monthB = new Date(b.month + '-01');
+        return monthA - monthB;  // Ordenar cronológicamente
+    }
+
+    // Combina los datos de increasing, decreasing y no_change
+    const allData = [
+        ...dataValue.increasing,
+        ...dataValue.decreasing,
+        ...dataValue.no_change
+    ];
+
+    // Ordena todas las entradas combinadas por mes
+    allData.sort(sortByMonth);
+
+    // Filtrar los meses con aumento (variación positiva) de "increasing"
+    const increasingMonths = dataValue.increasing
+        .filter(entry => entry.end - entry.start > 0)  // Filtrar por variación positiva
+        .map((entry, index) => ({
+            ...entry,
+            variation: parseFloat(entry.end - entry.start).toFixed(3), // Calcular la variación
+            index: index + 1 // Añadir un índice para la fila
+        }))
+        .sort((a, b) => a.variation - b.variation);  // Ordenar de menor a mayor variación
+
+    // Filtrar los meses con disminución (variación negativa) de "decreasing"
+    const decreasingMonths = dataValue.decreasing
+        .filter(entry => entry.end - entry.start < 0)  // Filtrar por variación negativa
+        .map((entry, index) => ({
+            ...entry,
+            variation: parseFloat(entry.end - entry.start).toFixed(3),  // Calcular la variación
+            index: index + 1 // Añadir un índice para la fila
+        }))
+        .sort((a, b) => b.variation - a.variation);  // Ordenar de mayor a menor variación
+
+    // Filtrar los meses sin variación (donde end - start == 0)
+    const noChangeMonths = dataValue.no_change
+        .filter(entry => entry.end - entry.start === 0)  // Filtrar por ausencia de variación
+        .map((entry, index) => ({
+            ...entry,
+            variation: parseFloat(entry.end - entry.start).toFixed(3), // Variación 0
+            index: index + 1 // Índice para la fila
+        }))
+        .sort((a, b) => a.month.localeCompare(b.month));  // Ordenar alfabéticamente por nombre del mes
+
+    // Función para crear filas de la tabla a partir de los datos
+    function createTableRows(entries) {
+        return entries.map(entry => {
+            // Redondea el promedio a 3 decimales
+            const avgRounded = parseFloat(entry.avg).toFixed(3);
+            console.log(entry)
+            return `
+                <tr>
+                    <th scope="row">${entry.index}</th>
+                    <td>${entry.month}</td>
+                    <td>${entry.start}</td>
+                    <td>${entry.end}</td>
+                    <td>${avgRounded}</td>  <!-- Promedio redondeado a 3 decimales -->
+                    <td>${entry.variation}</td>
+                    <td>${entry.type}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    
+
+
+    // Mostrar los resultados
+    document.getElementById('maxUF').innerHTML = `Mayor valor de UF: ${dataValue.max_value.valor} en ${dataValue.max_value.fecha}`;
+    document.getElementById('minUF').innerHTML = `Menor valor de UF: ${dataValue.min_value.valor} en ${dataValue.min_value.fecha}`;
+
+
+    // Insertar las filas ordenadas en la tabla
+    document.getElementById('allRows').innerHTML = createTableRows(allData);
+
+    // Insertar las filas ordenadas para los meses con aumento (subida) en la tabla
+    document.getElementById('increasingRows').innerHTML = createTableRows(increasingMonths);
+
+    // Insertar las filas ordenadas para los meses con disminución (bajada) en la tabla
+    document.getElementById('decreasingRows').innerHTML = createTableRows(decreasingMonths);
+
+    // Insertar las filas en la tabla de meses sin variación
+    document.getElementById('noChangeRows').innerHTML = createTableRows(noChangeMonths);
+
+</script>
+
+{% endblock %}
